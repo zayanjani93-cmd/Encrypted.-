@@ -1,1 +1,1 @@
-1.0 version.txt
+1.1 version.txt
