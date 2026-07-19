@@ -217,7 +217,7 @@ showMainDialog = function()
     end)
 end
 
--- FIXED UPDATE FUNCTION USING Java FileOutputStream
+-- NEW POWERFUL UPDATE FUNCTION (With Detailed Spoken Errors & Auto Folder Creation)
 _G.checkMominUpdate = function()
     Http.get(GITHUB_URL .. "version.txt", function(code, onlineV)
         if code == 200 and onlineV then
@@ -230,44 +230,64 @@ _G.checkMominUpdate = function()
                     dlg.setButton("Update Now", function()
                         dlg.dismiss()
                         service.speak("Update download ho rahi hai...")
+                        
                         Http.get(GITHUB_URL .. "main.lua", function(c, content)
-                            if c == 200 and content and #content > 1000 then
-                                -- Java File I/O for forced overwrite
-                                local ok, err = pcall(function()
-                                    local File = luajava.bindClass("java.io.File")
-                                    local FileOutputStream = luajava.bindClass("java.io.FileOutputStream")
-                                    local String = luajava.bindClass("java.lang.String")
-                                    
-                                    -- main.lua ko overwrite karna
-                                    local mainFile = File(PLUGIN_PATH)
-                                    local mainFos = FileOutputStream(mainFile)
-                                    mainFos.write(String(content).getBytes())
-                                    mainFos.flush()
-                                    mainFos.close()
-                                    
-                                    -- version.txt ko overwrite karna
-                                    local vFile = File(VERSION_FILE)
-                                    local vFos = FileOutputStream(vFile)
-                                    vFos.write(String(v).getBytes())
-                                    vFos.flush()
-                                    vFos.close()
-                                end)
-                                
-                                if ok then
-                                    local resDlg = LuaDialog(service or activity)
-                                    resDlg.setTitle("Success")
-                                    resDlg.setMessage("Momin Assistant update ho gaya hai. Restart karein?")
-                                    resDlg.setButton("Restart Now", function()
-                                        resDlg.dismiss()
-                                        restartMominNow() 
+                            if c == 200 then
+                                if content and #content > 300 then
+                                    local ok, err = pcall(function()
+                                        local File = luajava.bindClass("java.io.File")
+                                        local FileOutputStream = luajava.bindClass("java.io.FileOutputStream")
+                                        local String = luajava.bindClass("java.lang.String")
+                                        
+                                        -- 1. Ensure Directory Exists (Main wajah yahi hoti hai fail hone ki)
+                                        local dir = File(PLUGIN_DIR)
+                                        if not dir.exists() then
+                                            dir.mkdirs()
+                                        end
+                                        
+                                        -- 2. Save main.lua
+                                        local mainFile = File(PLUGIN_PATH)
+                                        local mainFos = FileOutputStream(mainFile)
+                                        mainFos.write(String(content).getBytes())
+                                        mainFos.flush()
+                                        mainFos.close()
+                                        
+                                        -- 3. Save version.txt
+                                        local vFile = File(VERSION_FILE)
+                                        local vFos = FileOutputStream(vFile)
+                                        vFos.write(String(v).getBytes())
+                                        vFos.flush()
+                                        vFos.close()
                                     end)
-                                    resDlg.setButton2("Later", function() resDlg.dismiss() end)
-                                    resDlg.show()
+                                    
+                                    if ok then
+                                        local resDlg = LuaDialog(service or activity)
+                                        resDlg.setTitle("Success")
+                                        resDlg.setMessage("Momin Assistant update ho gaya hai. Restart karein?")
+                                        resDlg.setButton("Restart Now", function()
+                                            resDlg.dismiss()
+                                            restartMominNow() 
+                                        end)
+                                        resDlg.setButton2("Later", function() resDlg.dismiss() end)
+                                        resDlg.show()
+                                    else
+                                        -- Agar fail hua toh Fallback (Lua io)
+                                        local fallbackF, fErr = io.open(PLUGIN_PATH, "w")
+                                        if fallbackF then
+                                            fallbackF:write(content)
+                                            fallbackF:close()
+                                            local vfFallback = io.open(VERSION_FILE, "w")
+                                            if vfFallback then vfFallback:write(v) vfFallback:close() end
+                                            service.speak("Update alternative method se ho gaya hai. Dobara plugin on karein.")
+                                        else
+                                            service.speak("File save fail ho gai. Storage permission check karein. Error: " .. tostring(err))
+                                        end
+                                    end
                                 else
-                                    service.speak("File save nahi ho saki. Error: " .. tostring(err))
+                                    service.speak("GitHub se file khali download hui. Link check karein.")
                                 end
                             else
-                                service.speak("Download fail ho gaya, ya file size chota hai.")
+                                service.speak("Download fail. HTTP Error code: " .. tostring(c))
                             end
                         end)
                     end)
