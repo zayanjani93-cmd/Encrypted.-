@@ -217,9 +217,9 @@ showMainDialog = function()
     end)
 end
 
--- YAHAN AAPKE DIYE GAYE CODE KA EXACT LOGIC ISTEMAL KIYA GAYA HAI
+-- NEW ERROR CHECKING & CACHE FIX UPDATE LOGIC
 _G.checkMominUpdate = function()
-    Http.get(GITHUB_URL .. "version.txt", function(code, onlineV)
+    Http.get(GITHUB_URL .. "version.txt?t=" .. os.time(), function(code, onlineV)
         if code == 200 and onlineV then
             local v = tostring(onlineV):gsub("%s+", "")
             if v ~= CURRENT_VERSION then
@@ -230,23 +230,35 @@ _G.checkMominUpdate = function()
                     dlg.setButton("Update Now", function()
                         dlg.dismiss()
                         service.speak("Update download ho rahi hai...")
-                        Http.get(GITHUB_URL .. "main.lua", function(c, content)
-                            if c == 200 and content and #content > 1000 then
-                                -- Exact file overwrite logic from your provided code
-                                local f = io.open(PLUGIN_PATH, "w")
-                                if f then f:write(content) f:close() end
-                                local vf = io.open(VERSION_FILE, "w")
-                                if vf then vf:write(v) vf:close() end
-                                
-                                local resDlg = LuaDialog(service or activity)
-                                resDlg.setTitle("Success")
-                                resDlg.setMessage("Momin Assistant update ho gaya hai. Restart karein?")
-                                resDlg.setButton("Restart Now", function()
-                                    resDlg.dismiss()
-                                    restartMominNow()
-                                end)
-                                resDlg.setButton2("Later", function() resDlg.dismiss() end)
-                                resDlg.show()
+                        
+                        Http.get(GITHUB_URL .. "main.lua?t=" .. os.time(), function(c, content)
+                            if c == 200 then
+                                if content and #content > 1000 then
+                                    local f = io.open(PLUGIN_PATH, "w")
+                                    if f then 
+                                        f:write(content) 
+                                        f:close() 
+                                        
+                                        local vf = io.open(VERSION_FILE, "w")
+                                        if vf then vf:write(v) vf:close() end
+                                        
+                                        local resDlg = LuaDialog(service or activity)
+                                        resDlg.setTitle("Success")
+                                        resDlg.setMessage("Momin Assistant update ho gaya hai. Restart karein?")
+                                        resDlg.setButton("Restart Now", function()
+                                            resDlg.dismiss()
+                                            restartMominNow()
+                                        end)
+                                        resDlg.setButton2("Later", function() resDlg.dismiss() end)
+                                        resDlg.show()
+                                    else
+                                        service.speak("Download ho gayi, par file save nahi ho saki. Apne folder ka naam check karein.")
+                                    end
+                                else
+                                    service.speak("Error! GitHub se khali ya aadhi file download hui hai.")
+                                end
+                            else
+                                service.speak("Download error! GitHub ne masla kiya hai. Code: " .. tostring(c))
                             end
                         end)
                     end)
